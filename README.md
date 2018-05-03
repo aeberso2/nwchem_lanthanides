@@ -1,0 +1,1 @@
+# nwchem_lanthanides
