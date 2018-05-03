@@ -1,0 +1,128 @@
+#!/bin/bash -login
+# This is an automatic submission script for the NBO 6.0 program
+# made by Lucas E. Aebersold (finished around April 2018)
+# feed it an input file and collect the results
+
+Code='gennbo'
+InpExt='gen'
+OutExt='out'
+MemTotal=2
+tCORE=`echo ${UserCoreReq}*${NNode}|bc`
+JobDir=`pwd`
+
+BaseScrDir=${SCRATCH}
+
+command_usage()
+{
+   echo ' '
+   echo 'Hi! This is a basic script that runs gennbo: '
+      echo ' '
+      echo "there aren't actually any other options, it just run your input file"  
+      echo '       -h  (display usage)'
+      echo ' '
+   exit
+}
+
+
+
+check_input_filename()
+{
+if [[ ${JobName##*.} == 'gen' ]]; then
+   InpExt=${JobName##*.}
+   JobName=${JobName%.*}
+   if [ ! -r ${JobName}.${InpExt} ]; then
+         echo ' '
+         echo No gennbo input file named ${JobName}.${InpExt} could be found in `pwd`
+         echo ' '
+         exit
+   fi
+fi
+}
+
+torque_header()
+{
+cat <<EOH1 > ${JobDir}/${JobName}.${Code}.c
+#!/bin/bash -login
+#PBS -q main
+#PBS -l nodes=4:ppn=1,mem=2gb,walltime=01:00:00
+#PBS -j oe
+#PBS -N ${JobName}
+BaseScrDir=${SCRATCH}
+JobDir=${JobDir}
+JobName=${JobName}
+InpExt=${InpExt}
+OutExt=${OutExt}
+ 
+#cd \${PBS_O_WORKDIR}
+
+module load nbo/6
+
+# Set PBS process id
+PbsId=\`echo \${PBS_JOBID} | cut -f1 -d.\`
+
+# Set scratch directory name
+ScrDir=${BaseScrDir}/\${PbsId}
+
+# Set primary compute node hostname
+mkdir -p \${ScrDir}
+
+# Change to scratch directory
+cd \${ScrDir}
+
+cat ${JobDir}/${JobName}.${InpExt} >> \${ScrDir}/${JobName}.${InpExt}
+
+# Create link to output file
+ln -fs \${ScrDir}/\${JobName}.${OutExt} \${JobDir}/\${JobName}.${OutExt}
+
+input='${JobName}.${InpExt}'
+output='${JobName}.${OutExt}'
+
+/opt/software/nbo/6/bin/gennbo \${ScrDir}/\${input} &> \${ScrDir}/\${output}
+
+
+# Delete link to output file if it exists
+if [[ -h ${JobDir}/${JobName}.${OutExt} ]]; then
+   /bin/rm -f ${JobDir}/${JobName}.${OutExt}
+fi
+
+# Write output file to JobDir
+if [ -e \$ScrDir/${JobName}.${OutExt} ]; then
+   /bin/cp -p \${ScrDir}/${JobName}.${OutExt} ${JobDir}
+fi
+
+if [[ -e ${JobDir}/${JobName}.${Code}.c ]]; then
+   /bin/rm -f ${JobDir}/${JobName}.${Code}.c
+fi
+
+EOH1
+
+}
+
+
+submit_job()
+{
+
+   chmod 755 ${JobDir}/${JobName}.${Code}.c
+
+   qsub ${JobDir}/${JobName}.${Code}.c
+   sleep 1
+   qstat -u ${USER}
+
+exit
+}
+
+##### Main
+
+# If command line is blank show usage
+
+if [ $# -eq 0 ] || [ ${1} == -h ] || [ ${1} == --help ]; then
+   command_usage
+else
+   JobName=${1}
+   shift
+   check_input_filename
+fi
+torque_header
+submit_job
+
+exit

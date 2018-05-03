@@ -1,0 +1,121 @@
+#!/home/aeberso2/miniconda3/bin/python
+
+import os, sys, argparse, string
+
+
+parser = argparse.ArgumentParser(description='''
+Hi! I make the .nw file that generates those orbital cube files for you, 
+you must specify a .movecs, .nw file to use, a name for the file, and 
+which vectors to plot
+''',
+epilog='\n Usage:\n dplot-gen-nwchem.py -n UO3 -r 3,8 -f UO3.tpss.nw -mo UO3.tpss.movecs -s alpha -g 50 \n')
+
+parser.add_argument('-n', '--identifier', help="Name of file identifier", required=True)
+parser.add_argument('-r', '--vector_range', help="vector range (3,8)", required=True)
+parser.add_argument('-f', '--file',help="the name of the file", required=True)
+parser.add_argument('-mo', '--movecs_file', help="name of movecs file", required=True)
+parser.add_argument('-s', '--spin_orbital_type', help="alpha, beta, or total", required=False)
+parser.add_argument('-g', '--grid',help="number of r grid points", required=False)
+#parser.add_argument('-rl', '--relativistic',help="type of rel calculation (rp, ae)", required=False)
+args = vars(parser.parse_args())
+
+compnd = args['identifier']
+filename = args['file']
+mo_file = args['movecs_file']
+info_l = []
+
+contents = open('{}'.format(filename), 'r')
+
+for line in contents.readlines():
+#     if line.startswith('dft') == False and line.startswith('scf') == False:
+    if line.startswith('start') == True:
+        info_l.append('start {}.dplots\n'.format(compnd))
+    elif line.startswith('title') == True:
+        info_l.append('title {}\n'.format(compnd))
+    elif line.startswith('vectors') == True:
+        info_l.append('vectors input {} output {}\n'.format(mo_file, mo_file))
+    elif line.startswith('task dft optimize') == True:
+        info_l.append('task dft energy\n')
+    elif line.startswith('task dft freq') == True:
+        info_l.append('\n')
+    else:
+        info_l.append(line)
+#     else:
+#          break
+info_l.append('\n\n')
+contents.close()
+
+mo_range = args['vector_range']
+vec_range = mo_range.split(',')
+
+if args['spin_orbital_type']:
+    orb_type = args['spin_orbital_type']
+else:
+    orb_type = 'alpha'
+
+if args['grid']:
+    dr = args['grid']
+else:
+    dr = 50
+
+f = open('{}.dplots.nw'.format(compnd),'w')
+for i in info_l:
+    f.write(i)
+
+orb = []
+for i in range(int(vec_range[0]),int(vec_range[1])+1):
+    orb.append(i)
+
+user = os.getlogin()
+dplt_path = '/mnt/home/{}/dplots'.format(user)
+if os.path.isdir(dplt_path):
+    pass
+else:
+    os.mkdir(dplt_path)
+r = 5.0
+r = str(r)
+dr = str(dr)
+
+# for i in range(0, len(orb)):
+#     print('dplot\n',
+#     'TITLE {}\n'.format(compnd),
+#     '{:4}vectors {}\n'.format('',mo_file),
+#     '    LimitXYZ\n',
+#     '   -{:<4}{:>4}{:>4}\n'.format(r,r,dr),
+#     '   -{:<4}{:>4}{:>4}\n'.format(r,r,dr),
+#     '   -{:<4}{:>4}{:>4}\n'.format(r,r,dr),
+#     '    spin {}\n'.format(orb_type),
+#     '    orbitals view\n',
+#     '    1; {}\n'.format(orb[i]),
+#     '    gaussian\n',
+#     '    output /mnt/home/{}/dplots/{}.{}-orb-{}.cube\n'.format(user, compnd,orb_type[0],orb[i]),
+#     'end\n',
+#     'task dplot\n',file=f)
+# f.close()
+
+for i in range(0, len(orb)):
+    print('dplot\n',
+    'title "{} nbf{}"\n'.format(compnd, orb[i]),
+    '{:4}vectors {}\n'.format('', mo_file),
+    '    Limitxyz\n',
+    '   -{:<4}{:>4}{:>4}\n'.format(r, r, dr),
+    '   -{:<4}{:>4}{:>4}\n'.format(r, r, dr),
+    '   -{:<4}{:>4}{:>4}\n'.format(r, r, dr),
+    '    spin {}\n'.format(orb_type),
+    '    orbitals view\n',
+    '    1; {}\n'.format(orb[i]),
+    '    gaussian\n',
+#     '    output /mnt/home/{}/dplots/{}.{}-orb-{}.cube\n'.format(user, compnd,orb_type[0], orb[i]),
+    '    output {}.{}-orb-{}.cube\n'.format(compnd, orb_type[0], orb[i]),
+    'end\n',
+    'task dplot\n', file=f)
+f.close()
+
+# os.system("sed -i 's/task dft optimize/task dft energy/g' {}".format(filename))
+# os.system("sed -i 's/task dft freq//g' {}".format(filename))
+# os.system("sed -i 's/task sodft energy//g' {}".format(filename))
+# os.system("sed -i 's/vectors input atomic/vectors input {}/g' {}".format(mo_file))
+
+print('Your dplot file for {} was created successfully! (hopefully)'.format(compnd))
+
+sys.exit()

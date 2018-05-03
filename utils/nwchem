@@ -1,0 +1,287 @@
+#!/bin/bash
+#
+#  A script to submit NWChem v6.8 jobs in ICER with PBS 
+#  initial version [Lucas E. Aebersold: Summer 2017]
+#  last updated [LEA: April 2018]
+#  based on a submission script for the UNT-server cruntch2 made by Dave Hrovat (UNT) 
+#  around 2008 or something
+#  
+#  Note: this uses a local build of NWChem which has the environment variables (mostly) properly configured 
+#  unlike the icer nwchem builds, this will run significantly faster and not randomly die for no reason. 
+#  if you happen upon this script and would like to change what version of nwchem is used
+#  you would just need to alter the location of the nwchem directory to where you wish to launch 
+
+# Set up the defaults
+Code='nwchem'
+NWCHEM_TOP="${HOME}/Programs/nwchem-6.8.1"
+NWCHEM_EX="${HOME}/Programs/nwchem-6.8.1/bin/LINUX64"
+InpExt='nw'
+OutExt='out'
+MemTotal=2
+UserNodes=1
+UserPPN=1
+tCORE=`echo ${UserNodes}*${UserPPN}|bc`
+JobDir=`pwd`
+WallTime="3:59:59"
+BaseScrDir=${SCRATCH}
+
+#     routines
+# check the input file for the extension .nw, 
+# if it exists, remap Jobname to the all but the .nw in the string 
+check_input_filename()
+{
+if [[ ${JobName##*.} == 'nw' ]]; then
+   InpExt=${JobName##*.}
+   JobName=${JobName%.*}
+   if [ ! -r ${JobName}.${InpExt} ]; then
+      echo ' '
+      echo No NWChem input file named ${JobName}.${InpExt} could be found in `pwd`
+      echo ' '
+      exit
+   fi
+fi
+}
+
+
+# display usage message 
+command_usage()
+{
+   echo ' '
+   echo 'Hi! This is a basic script that runs NWChem-6.8.1: '
+      echo ' '
+      echo '   nwchem jobname[.nw] -n (number of nodes)'
+      echo '                           -p (proccessors per node)'
+      echo '                           -m  (total memory in gb required)'
+      echo '                           -t  (time in hh:mm:ss to run. Default is 3:59:59)'
+      echo '                           -h  (display usage)'
+      echo '   '
+      echo ' example: nwchem job.nw -n 4 -p 8 -m 30   ' 
+      echo '   '
+   exit
+}
+
+# this sets up the PBS torque submission header 
+torque_header()
+{
+if [[ -e ${JobDir}/${JobName}.${Code}.c ]]; then
+   rm -f ${JobDir}/${JobName}.${Code}.c
+fi
+cat <<EOH1 > ${JobDir}/${JobName}.${Code}.c
+#!/bin/bash
+#PBS -V
+EOH1
+
+if [[ `echo ${JobName} | cut -c1` != [0123456789{}\[\]] ]]; then
+cat <<EOH2 >> ${JobDir}/${JobName}.${Code}.c
+#PBS -N `echo \${JobName} | cut -c1-15`
+EOH2
+fi
+
+## here might have to set feature='intel17', to use Intel/17.4
+# else Intel/16.3 is might be reverted to 
+# err no, seems to work when set to intel16, tf ever
+# feature - intel16? intel17?
+#PBS -l feature='intel16'
+cat <<EOH3 >> ${JobDir}/${JobName}.${Code}.c
+#PBS -l walltime=${WallTime}
+#PBS -l nodes=${UserNodes}:ppn=${UserPPN}
+#PBS -l mem=${MemTotal}gb
+#PBS -l feature='intel16'
+#PBS -j oe
+#PBS -r n
+EOH3
+}
+
+
+common_head()
+{
+cat << ! >> ${JobDir}/${JobName}.${Code}.c
+# Set some internal variables
+JobDir=${JobDir}
+JobName=${JobName}
+InpExt=${InpExt}
+OutExt=${OutExt}
+BaseScrDir=${BaseScrDir}
+Code=${Code}
+WallTime=${WallTime}
+UserNodes=${UserNodes}
+UserPPN=${UserPPN}
+tCORE=${tCORE}
+
+module unload GNU
+module unload MKL
+#module unload Intel
+#module unload MVAPICH
+#module unload OpenMPI
+module load Intel/17.4
+module load OpenMPI/3.0.0
+module load MKL/11.2
+
+
+# Set PBS process id
+PbsId=\`echo \${PBS_JOBID} | cut -f1 -d.\`
+
+# Set PBS standard output file root
+StdOut=\${PBS_JOBID}
+
+# Set scratch directory name
+ScrDir=\${BaseScrDir}/\${PbsId}
+
+# Set primary compute node hostname
+HostName=\`hostname -s\`
+mkdir -p \${ScrDir}
+
+# Change to scratch directory
+cd \${ScrDir}
+
+# Create link to output file
+ln -fs \${ScrDir}/\${JobName}.${OutExt} \${JobDir}/\${JobName}.${OutExt}
+
+!
+
+}
+
+
+#NWCHEM_BASIS_LIBRARY=\${NWCHEM_TOP}/data/libraries
+nwchem_setup()
+{
+cat << ! >> ${JobDir}/${JobName}.${Code}.c
+# Setup path to NWChem executables
+NWCHEM_TOP=${NWCHEM_TOP}
+NWCHEM_EX=\${NWCHEM_TOP}/bin/LINUX64
+export NWCHEM_TOP
+NWCHEM_BASIS_LIBRARY=\${NWCHEM_TOP}/src/basis/libraries
+export NWCHEM_BASIS_LIBRARY
+NWCHEM_NWPW_LIBRARY=\${NWCHEM_TOP}/data/libraryps
+export NWCHEM_NWPW_LIBRARY
+export ARMCI_DEFAULT_SHMMAX=4096
+unset MA_USE_ARMCI_MEM
+
+
+# Prepend scratch and permanent directory locations
+# and create input file in NWChem scratch directory
+cat <<EOF > \${ScrDir}/\${JobName}.\${InpExt}
+SCRATCH_DIR \${ScrDir}
+PERMANENT_DIR \${JobDir}
+EOF
+cat \${JobDir}/\${JobName}.\${InpExt} >> \${ScrDir}/\${JobName}.\${InpExt}
+
+!
+
+# Write date and scratch disk space to standard output
+cat << ! >> ${JobDir}/${JobName}.${Code}.c
+# Write date and scratch disk space to standard output
+echo
+echo Job \${JobName} started on \`hostname -s\` \`date\`
+echo Free disk space on \`hostname -s\`:
+df -k \${ScrDir}
+echo 
+echo Elapsed cpu time for \${JobDir} on \`hostname -s\`:
+echo 
+
+# Run NWChem
+/usr/bin/time -p mpirun -np \${tCORE} \${NWCHEM_EX}/nwchem \${ScrDir}/\${JobName}.\${InpExt} > \${ScrDir}/\${JobName}.\${OutExt}
+
+!
+
+}
+
+common_tail()
+{
+
+cat << ! >> ${JobDir}/${JobName}.${Code}.c
+# Delete link to output file if it exists
+if [[ -h \${JobDir}/\${JobName}.${OutExt} ]]; then
+   /bin/rm -f \${JobDir}/\${JobName}.${OutExt}
+fi
+
+# Write output file to JobDir
+if [ -e \$ScrDir/\${JobName}.${OutExt} ]; then
+   /bin/cp -p \${ScrDir}/\${JobName}.${OutExt} \${JobDir}
+fi
+
+# Clean up files
+if [[ -e \${JobDir}/\${JobName}.${Code}.c ]]; then
+   /bin/rm -f \${JobDir}/\${JobName}.${Code}.c
+fi
+
+
+if [[ -e \${JobDir}/\${JobName}.gen ]]; then
+    /bin/mkdir -p \${JobDir}/NBO;
+    /bin/mv \${JobDir}/\${JobName}.gen \${JobDir}/NBO/\${JobName##.*}.nbo.gen
+fi 
+exit
+
+!
+
+#if [[ -e \${JobDir}/\${JobName}.gen ]]; then
+#    /bin/mv \${JobDir}/\${JobName}.gen \${JobDir}/\${JobName##.*}.nbo.gen
+#fi
+}
+
+submit_job()
+{
+
+   chmod 755 ${JobDir}/${JobName}.${Code}.c
+
+   qsub ${JobDir}/${JobName}.${Code}.c
+   sleep 1
+   qstat -u ${USER}
+ 
+exit
+}
+
+##### Main
+
+# If command line is blank, or has flags -h/--help, then show usage
+
+if [ $# -eq 0 ] || [ ${1} == -h ] || [ ${1} == --help ]; then
+   command_usage
+   # else the JobName is taken as the first argument given. 
+else
+   JobName=${1}
+   shift
+   check_input_filename
+
+# Parse command line options
+# while there are additional flags, check for each one if it is one of the following
+   while [ "$1" != "" ]; do
+       case $1 in
+           -n | --nodes )   shift  
+                             UserNodes=${1}
+                             tCORE=`echo ${UserNodes}*${UserPPN}|bc`
+                             ;;
+           -p | --ppn )     shift  
+                             UserPPN=${1}
+                             tCORE=`echo ${UserNodes}*${UserPPN}|bc`
+                             ;;
+           -h  | --help )    command_usage
+                             exit
+                             ;;
+           -m  | --memory ) shift
+                             MemTotal=${1}
+                             ;;
+           -t  | --time )   shift
+                             WallTime=${1}
+                             ;;
+           * )               echo 
+                             echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                             echo "* You put something in wrong, (${1}) isn't an option *"
+                             echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                             echo 
+                             exit 1
+       esac
+       shift
+   done
+
+fi
+# write the torque header, common header, nwchem setup parameters, and common tail
+# submit the job
+   torque_header
+   common_head
+   nwchem_setup
+   common_tail
+   submit_job
+
+exit
+
