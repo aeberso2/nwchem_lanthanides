@@ -15,19 +15,6 @@ Ln_list = [
 ]
 
 
-# def data_sync2():
-#     os.chdir('db_files')
-#     mult_info = pd.read_csv('multiplicity.csv', index_col=0)
-#     mult = mult_info.loc[:, 'Mult']
-#     os.chdir('..')
-#
-#     maindb = pd.HDFStore('input_gendb.h5', 'a')
-#     maindb['basis'] =  proto_basis_database
-#     maindb['geom_init']  =  geom_db
-#     maindb['multiplicity'] = mult
-#     maindb.close()
-
-# data_sync2()
 
 # This routine fetches the basis set information
 def get_basis(atom, basis_set):
@@ -253,12 +240,6 @@ def gen_nw_recp_dft_inputv2(input_set,
 
         elif atom not in rel_set:
             BASIS.append(get_basis(atom, non_rel_basis))
-            
-    # begin writing input options, vec_input is our initial vector guess
-    # need unified output vector format
-    # m06l vectors cause issues with memory for whatever reason
-#     vec_input = ['{}.m06l.f.movecs'.format(cmp)]
-    
 
     # create a folder to put all inputs in
     # I usually lower the case 'cause I don't like constantly using the shift key to 
@@ -304,7 +285,7 @@ def gen_nw_recp_dft_inputv2(input_set,
             card = 'spin-orbit opt+freq'
             exten = ['sopt']
         if init_guess != 'atomic':
-            vec_input = '{}.{}.m{}.movecs'.format(cmp, init_guess, str(M))
+            vec_input = '{}.{}.m{}.f.movecs'.format(cmp, init_guess, str(M))
 
         # optimizing dft and sodft in one input is a bad idea 
         if dft_direc == 'both':

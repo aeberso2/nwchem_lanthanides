@@ -16,10 +16,10 @@ Ln_list = [
 
 
 def data_sync2():
-    os.chdir('db_files')
+#     os.chdir('db_files')
     mult_info = pd.read_csv('multiplicity.csv', index_col=0)
     mult = mult_info.loc[:, 'Mult']
-    os.chdir('..')
+#     os.chdir('..')
 
     maindb = pd.HDFStore('input_gendb.h5', 'a')
 #     maindb['basis'] =  proto_basis_database
