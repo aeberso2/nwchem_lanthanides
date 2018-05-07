@@ -7,6 +7,9 @@ from numpy import *
 import pandas as pd
 top_direc = os.getcwd()
 
+direc = 'Lanthanides-Mark2/transfer_codes'
+home_path = '/mnt/home/{}/'.format(os.getlogin()) + direc + '/nwchem_lanthanides/'
+
 # this is for your reference
 Ln_list = [
     'LaF', 'PrF', 'NdF', 'EuF', 'GdF', 'TbF', 'DyF', 'HoF', 'ErF', 'TmF', 'YbF', 'LuF', 'LaO', 'CeO', 'PrO', 'NdO', 'SmO', 'EuO', 'GdO', 'TbO', 'DyO', 'HoO', 'ErO', 'TmO', 'YbO', 'LuO', 
@@ -19,7 +22,7 @@ Ln_list = [
 # This routine fetches the basis set information
 def get_basis(atom, basis_set):
     
-    os.chdir('basis_v2')
+    os.chdir(home_path + '/basis_v2')
     basis_db = open('{}.dat'.format(basis_set), 'r')
     contents = basis_db.readlines()
     BASIS = []
@@ -43,11 +46,13 @@ def get_basis(atom, basis_set):
 
     elif can_proceed == False:
         basis_db.close()
-        os.chdir('..')          
+#         os.chdir('..')
+        os.chdir(top_direc)
         raise Exception('No {} basis entry  for {}!!! Aborting.'.format(basis_set, atom)) 
         
     basis_db.close()
-    os.chdir('..')
+#     os.chdir('..')
+    os.chdir(top_direc)
     return BASIS
 
 
@@ -157,7 +162,9 @@ def gen_nw_recp_dft_inputv2(input_set,
     workdir = top_direc
     cmp = input_set
     # get multiplicities
+    os.chdir(home_path)
     mult_data = pd.read_hdf('input_gendb.h5', 'multiplicity')
+    os.chdir(top_direc)
     # if no multiplicity found, ask for one
     if cmp not in mult_data.index:
         print('No multiplicity value found for {}'.format(cmp))
@@ -193,14 +200,19 @@ def gen_nw_recp_dft_inputv2(input_set,
         # note the initial geometries are pretty much obsolete so this option 
         # is set to always read tpss
 #         if geom_read == 'default':
+
+        os.chdir(home_path)
         if geom_read == 'initial':
             geom_file = pd.read_hdf('input_gendb.h5', 'geom_init')
+            os.chdir(top_direc)
         elif geom_read == 'tpss':
             geom_file = pd.read_hdf('input_gendb.h5', 'geom_tpss')
+            os.chdir(top_direc)
 
         # halt if geometry is not in the index 
         if cmp not in geom_file.index:
             raise Exception('No geometry entry found for {}'.format(cmp))
+            os.chdir(top_direc)
 
         GEO = geom_file[cmp]
         
