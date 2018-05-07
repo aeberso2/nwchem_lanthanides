@@ -1,5 +1,5 @@
-#!/mnt/home/thom1618/miniconda3/bin/python
 #!/mnt/home/aeberso2/miniconda3/bin/python
+#!/mnt/home/thom1618/miniconda3/bin/python
 
 import os, re, string
 import sys, argparse
@@ -201,6 +201,7 @@ def gen_nw_recp_dft_inputv2(input_set,
         # halt if geometry is not in the index 
         if cmp not in geom_file.index:
             raise Exception('No geometry entry found for {}'.format(cmp))
+
         GEO = geom_file[cmp]
         
     # if CC was a flag, use the cc-pVTZ-PP basis set
@@ -261,12 +262,20 @@ def gen_nw_recp_dft_inputv2(input_set,
             exten.append('rp')
             exten.append('so')
 
+#         elif dft_direc == 'sodft':
+#             card = 'spin-orbit opt+freq'
+#             exten = ['sopt']
         else:
             DFT_DIRECS = ['task {} energy'.format(dft_direc)]
-            exten = ['rp']
+            if dft_direc == 'sodft':
+                exten = ['so']
+                if init_guess != 'atomic':
+                    vec_input = '{}.{}.m{}.f.movecs'.format(cmp, init_guess, str(M))
+            elif dft_direc == 'dft':
+                exten = ['rp']
 
-        if init_guess != 'atomic':
-            vec_input = '{}.{}.{}.movecs'.format(cmp, init_guess, exten[0])
+                if init_guess != 'atomic':
+                    vec_input = '{}.{}.{}.movecs'.format(cmp, init_guess, exten[0])
 
         new_dir2 = '{}/{}'.format(cmp, rel_basis)
         # if this directory doesn't exist make it
@@ -350,7 +359,7 @@ def gen_nw_recp_dft_inputv2(input_set,
                                  
             Main_file.append(' maxiter 200\nend\n\n') 
             # if first pass, then add line to generate nbo file 
-            if j == 0 and exten[0] != 'sopt':
+            if j == 0 and exten[0] != 'sopt' and exten[0] != 'so':
                 Main_file.append('property\n nbofile\nend\n\n')
 #                 Main_file.append('property\n moldenfile\nmolden_norm nwchem\nend\n')
                 Main_file.append('{}\ntask dft property\n'.format(DFT_DIRECS[j]))
