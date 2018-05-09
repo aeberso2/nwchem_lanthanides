@@ -1,5 +1,5 @@
-#!/mnt/home/aeberso2/miniconda3/bin/python
 #!/mnt/home/thom1618/miniconda3/bin/python
+#!/mnt/home/aeberso2/miniconda3/bin/python
 
 import os, re, string
 import sys, argparse
@@ -7,8 +7,11 @@ from numpy import *
 import pandas as pd
 top_direc = os.getcwd()
 
-direc = 'Lanthanides-Mark2/transfer_codes'
-home_path = '/mnt/home/{}/'.format(os.getlogin()) + direc + '/nwchem_lanthanides/'
+# direc = 'Lanthanides-Mark2/transfer_codes'
+direc = 'Lanthanides'
+# home_path = '/mnt/home/{}/'.format(os.getlogin()) + direc + '/nwchem_lanthanides/'
+home_path = '/mnt/home/{}/'.format(os.getlogin())+'/nwchem_lanthanides/'
+
 
 # this is for your reference
 Ln_list = [
