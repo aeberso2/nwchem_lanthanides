@@ -55,10 +55,56 @@ def get_basis(atom, basis_set):
     os.chdir(top_direc)
     return BASIS
 
+def get_the_geom(func, cmp):
+    # excised geom subroutine 
+    # this regex term will find any match of an uppercase letter and if followed by a lowercase
+    # letter includes that in the match, if not, it doesn't. Or it will match any digit
+    # [A-Z] -> anything in this set, 
+    # [a-z]* -> anything in this set 0 to infinite times
+    # | -> or
+    # \d+ -> matches any digit 1 or more times
+    # So this will distinguish I from Ir, O from Os, etc, 
+    sub_list = re.findall(r'[A-Z][a-z]*|\d+', cmp)
+    
+    # if only one match is found, that means only a single atom was entered
+    # else, it means multiple atom strings, and/or digits were entered
+    # that is why the digit was appended in case something like Th2 was entered
+    if len(sub_list) == 1:
+        GEO = 'zmatrix\n{}\nend\n'.format(cmp)
+        elem_list = sub_list
+        # halt if user is trying to optimize an atom 
+        if optimize == 'y':
+            raise Exception('Atoms do not require optimization')
+
+    else:
+        # now we don't care about digits, just find all entries of chemical elements
+        elem_list = re.findall(r'[A-Z][a-z]*', cmp)
+        # two options one to read the initial geometries, the other to take the tpss geoms
+        # note the initial geometries are pretty much obsolete so this option 
+        # is set to always read tpss
+        os.chdir(home_path)
+#         if geom_read == 'initial':
+#             geom_file = pd.read_hdf('input_gendb.h5', 'geom_init')
+#             os.chdir(top_direc)
+        if func == 'tpss':
+            geom_file = pd.read_hdf('input_gendb.h5', 'geom_tpss')
+            os.chdir(top_direc)
+
+        elif func != 'tpss':
+            geom_file = pd.read_hdf('input_gendb.h5', 'geom_{}'.format(func))
+            os.chdir(top_direc)
+
+        # halt if geometry is not in the index 
+        if cmp not in geom_file.index:
+            raise Exception('No geometry entry found for {}'.format(cmp))
+            os.chdir(top_direc)
+
+        GEO = geom_file[cmp]
+        return GEO 
 
 def init_params():
     # These elements require a pseudopotential - not inclusive list, just includes the atoms we work with.    
-    rel_set = array(['Br','I','Hf','Ta','W','Re','Os','Ir','Pt','Au','Hg',
+    rel_set = array(['Br', 'I', 'Hf', 'Ta','W','Re','Os','Ir','Pt','Au','Hg',
                      'Ac','Th','U','Pa','Np','Pu','Am','Cm','Bk','Cf','Es','Fm','Md','No','Lr',
                      'La','Ce','Pr','Nd','Pm','Sm','Eu','Gd','Tb','Dy','Ho','Er','Tm','Yb','Lu'])
 
@@ -120,7 +166,8 @@ def gen_nw_recp_dft_inputv2(input_set,
                           level='WB',
                           init_guess='atomic',
                           Nbas_keys='',
-                          geom_read='tpss'):
+#                           geom_read='tpss'
+                          ):
 #                                    Nbas_keys=['','T']):
     '''
     This program will generate a set of DFT functional inputs that run in NWChem
@@ -156,8 +203,8 @@ def gen_nw_recp_dft_inputv2(input_set,
 #                    'm06l', 'pbe0', 'b3lyp', 'bhlyp', 'b3p86', 'b97-1',
 #                    'x3lyp', 'tpssh']
     
-    functionals = ['svwn', 'pbe', 'b3lyp']
-#    functionals = ['tpss', 'm06l']  
+#     functionals = ['svwn', 'pbe', 'b3lyp', 'm06l']
+    functionals = ['tpss']
     
     workdir = top_direc
     cmp = input_set
@@ -175,47 +222,14 @@ def gen_nw_recp_dft_inputv2(input_set,
     if optimize == None:
         optimize = 'n'
         
-    # this regex term will find any match of an uppercase letter and if followed by a lowercase
-    # letter includes that in the match, if not, it doesn't. Or it will match any digit
-    # [A-Z] -> anything in this set, 
-    # [a-z]* -> anything in this set 0 to infinite times
-    # | -> or
-    # \d+ -> matches any digit 1 or more times
-    # So this will distinguish I from Ir, O from Os, etc, 
     sub_list = re.findall(r'[A-Z][a-z]*|\d+', cmp)
-    
-    # if only one match is found, that means only a single atom was entered
-    # else, it means multiple atom strings, and/or digits were entered
-    # that is why the digit was appended in case something like Th2 was entered
-    if len(sub_list) == 1:
-        GEO = 'zmatrix\n{}\nend\n'.format(cmp)
-        elem_list = sub_list
-        # halt if user is trying to optimize an atom 
-        if optimize == 'y':
-            raise Exception('Atoms do not require optimization')
-    else:
-        # now we don't care about digits, just find all entries of chemical elements
-        elem_list = re.findall(r'[A-Z][a-z]*', cmp)
-        # two options one to read the initial geometries, the other to take the tpss geoms
-        # note the initial geometries are pretty much obsolete so this option 
-        # is set to always read tpss
-#         if geom_read == 'default':
-
-        os.chdir(home_path)
-        if geom_read == 'initial':
-            geom_file = pd.read_hdf('input_gendb.h5', 'geom_init')
-            os.chdir(top_direc)
-        elif geom_read == 'tpss':
-            geom_file = pd.read_hdf('input_gendb.h5', 'geom_tpss')
-            os.chdir(top_direc)
-
-        # halt if geometry is not in the index 
-        if cmp not in geom_file.index:
-            raise Exception('No geometry entry found for {}'.format(cmp))
-            os.chdir(top_direc)
-
-        GEO = geom_file[cmp]
         
+    if len(sub_list) == 1:
+        elem_list = sub_list
+
+    else:
+        elem_list = re.findall(r'[A-Z][a-z]*', cmp)
+
     # if CC was a flag, use the cc-pVTZ-PP basis set
     # if no the flag was either SEG or ANO, anything else will error out in later searches
     if rel_basis == 'CC':
@@ -306,7 +320,7 @@ def gen_nw_recp_dft_inputv2(input_set,
             card = 'spin-orbit opt+freq'
             exten = ['sopt']
         if init_guess != 'atomic':
-            vec_input = '{}.{}.m{}.f.movecs'.format(cmp, init_guess, str(M))
+            vec_input = '{}.{}.m{}.f.movecs'.format(cmp, init_guess, M)
 
         # optimizing dft and sodft in one input is a bad idea 
         if dft_direc == 'both':
@@ -334,7 +348,9 @@ def gen_nw_recp_dft_inputv2(input_set,
         Main_file.append('memory 500 mw\necho\n\n')
         
         Main_file.append('geometry\n')
+        GEO = get_the_geom(functionals[i], cmp)
         Main_file.append(GEO)
+
         Main_file.append('end\n')
         Main_file.append('\n\nbasis spherical\n')
         for j in range(0, len(BASIS)):
@@ -396,7 +412,7 @@ parser.add_argument('-b', '--relbasis', help="basis type: SEG, ANO, AE", require
 parser.add_argument('-iv', '--initvecs',     help="functional to use as initial vectors, else uses atomic guess", required=False)
 parser.add_argument('-o', '--optimize',  help="do an optimization+freq", required=False)
 parser.add_argument('-d', '--dft_task',    help="task directive for: dft sodft both, default=dft", required=False)
-parser.add_argument('-g','--geom', help='selects starting geom file (initial,tpss,...), default=tpss', required=False)
+# parser.add_argument('-g','--geom', help='selects starting geom file (initial,tpss,...), default=tpss', required=False)
 # parser.add_argument('-e', '--ecptype',     help="ECP type WB", required=False)
 # parser.add_argument('-aug', '--augmented', help="augmented ligand set?", required=False)
 # parser.add_argument('-rl', '--relativistic', help='type of rel calculation (rp, ae)', required=False)
@@ -422,10 +438,10 @@ if args['dft_task']:
 else:
     dft_direc = 'dft'
 
-if args['geom']:
-    geom_read = args['geom']
-else: 
-    geom_read = 'tpss'
+# if args['geom']:
+#     geom_read = args['geom']
+# else:
+#     geom_read = 'tpss'
 
 if args['initvecs']:
     init_guess = args['initvecs']
@@ -621,4 +637,5 @@ def gen_nw_DKH_dft_input(input_set, dft_direc='both',init_guess='atomic', optimi
 if args['relbasis'] == 'AE' or args['relbasis'] == 'DKH' or args['relbasis'] == 'DK':
     gen_nw_DKH_dft_input(compnd, dft_direc=dft_direc, init_guess=init_guess, optimize='n', Nbas_keys=['','T'], geom_read=geom_read)
 else: 
-    gen_nw_recp_dft_inputv2(compnd, rel_basis, dft_direc=dft_direc, init_guess=init_guess, optimize=optimize, level='WB', Nbas_keys='', geom_read=geom_read)
+#     gen_nw_recp_dft_inputv2(compnd, rel_basis, dft_direc=dft_direc, init_guess=init_guess, optimize=optimize, level='WB', Nbas_keys='', geom_read=geom_read)
+    gen_nw_recp_dft_inputv2(compnd, rel_basis, dft_direc=dft_direc, init_guess=init_guess, optimize=optimize, level='WB', Nbas_keys='')

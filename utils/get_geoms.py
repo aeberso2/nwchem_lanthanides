@@ -9,6 +9,7 @@ Ln_list = [
 
 geom_list = []
 
+functional = 'm06l'
 for ln in Ln_list:
     geom_path = '{}/opt'.format(ln)
     if os.path.isdir(geom_path):
@@ -17,7 +18,7 @@ for ln in Ln_list:
         print('No folder for {} found.'.format(ln))
         continue
     dir_contents = os.listdir()
-    geom_file = '{}.geom'.format(ln)
+    geom_file = '{}.{}.geom'.format(ln,functional)
     if os.path.isfile(geom_file):
         f = open(geom_file, 'r')
         geom_str = ''
@@ -36,4 +37,5 @@ for ln in Ln_list:
 geom_db = pd.Series(geom_list,index=Ln_list)
 main_db = pd.HDFStore('input_gendb.h5','a')
 main_db['geom_tpss'] = geom_db
+main_db['geom_{}'.format(functional)] = geom_db
 main_db.close()
