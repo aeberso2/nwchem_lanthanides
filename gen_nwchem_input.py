@@ -1,6 +1,9 @@
 #!/mnt/home/thom1618/miniconda3/bin/python
 #!/mnt/home/aeberso2/miniconda3/bin/python
 
+# this code generates nwchem input files 
+# it was made as a convience, though it may not be perfect
+#
 import os, re, string
 import sys, argparse
 from numpy import *
@@ -12,15 +15,13 @@ direc = 'Lanthanides'
 # home_path = '/mnt/home/{}/'.format(os.getlogin()) + direc + '/nwchem_lanthanides/'
 home_path = '/mnt/home/{}/'.format(os.getlogin())+'/nwchem_lanthanides/'
 
-
 # this is for your reference
 Ln_list = [
-    'LaF', 'PrF', 'NdF', 'EuF', 'GdF', 'TbF', 'DyF', 'HoF', 'ErF', 'TmF', 'YbF', 'LuF', 'LaO', 'CeO', 'PrO', 'NdO', 'SmO', 'EuO', 'GdO', 'TbO', 'DyO', 'HoO', 'ErO', 'TmO', 'YbO', 'LuO', 
-    'LaF2', 'SmF2', 'EuF2', 'LaCl2', 'CeCl2', 'PrCl2', 'NdCl2', 'SmCl2', 'EuCl2', 'GdCl2', 'TbCl2', 'HoCl2', 'ErCl2',
-    'LaF3', 'CeF3', 'PrF3', 'NdF3', 'GdF3', 'TbF3', 'DyF3', 'HoF3', 'ErF3', 'LuF3', 'LaCl3', 'CeCl3', 'PrCl3', 'NdCl3', 'GdCl3'
+    'LaF', 'PrF', 'NdF', 'EuF', 'GdF', 'TbF', 'DyF', 'HoF', 'ErF', 'TmF', 'YbF', 'LuF', 'LaO', 'CeO', 'PrO', 'NdO', 'SmO', 
+    'EuO', 'GdO', 'TbO', 'DyO', 'HoO', 'ErO', 'TmO', 'YbO', 'LuO', 'LaF2', 'SmF2', 'EuF2', 'LaCl2', 'CeCl2', 'PrCl2', 'NdCl2', 
+    'SmCl2', 'EuCl2', 'GdCl2', 'TbCl2', 'HoCl2', 'ErCl2', 'LaF3', 'CeF3', 'PrF3', 'NdF3', 'GdF3', 'TbF3', 'DyF3', 'HoF3', 'ErF3', 
+    'LuF3', 'LaCl3', 'CeCl3', 'PrCl3', 'NdCl3', 'GdCl3'
 ]
-
-
 
 # This routine fetches the basis set information
 def get_basis(atom, basis_set):
@@ -58,7 +59,7 @@ def get_basis(atom, basis_set):
     os.chdir(top_direc)
     return BASIS
 
-def get_the_geom(func, cmp):
+def get_the_geom(func, cmp, current_dir):
     # excised geom subroutine 
     # this regex term will find any match of an uppercase letter and if followed by a lowercase
     # letter includes that in the match, if not, it doesn't. Or it will match any digit
@@ -82,28 +83,17 @@ def get_the_geom(func, cmp):
     else:
         # now we don't care about digits, just find all entries of chemical elements
         elem_list = re.findall(r'[A-Z][a-z]*', cmp)
-        # two options one to read the initial geometries, the other to take the tpss geoms
-        # note the initial geometries are pretty much obsolete so this option 
-        # is set to always read tpss
-        os.chdir(home_path)
-#         if geom_read == 'initial':
-#             geom_file = pd.read_hdf('input_gendb.h5', 'geom_init')
-#             os.chdir(top_direc)
-        if func == 'tpss':
-            geom_file = pd.read_hdf('input_gendb.h5', 'geom_tpss')
-            os.chdir(top_direc)
 
-        elif func != 'tpss':
-            geom_file = pd.read_hdf('input_gendb.h5', 'geom_{}'.format(func))
-            os.chdir(top_direc)
+        os.chdir(top_direc)
+        geom_file = pd.read_hdf('input_gendb.h5', 'geom_{}'.format(func))
+        os.chdir(current_dir)
 
         # halt if geometry is not in the index 
         if cmp not in geom_file.index:
             raise Exception('No geometry entry found for {}'.format(cmp))
-            os.chdir(top_direc)
 
         GEO = geom_file[cmp]
-        return GEO 
+    return GEO 
 
 def init_params():
     # These elements require a pseudopotential - not inclusive list, just includes the atoms we work with.    
@@ -168,6 +158,7 @@ def gen_nw_recp_dft_inputv2(input_set,
                           optimize='n',
                           level='WB',
                           init_guess='atomic',
+                          input_func=['tpss','m06l','b3lyp','svwn','pbe'],
                           Nbas_keys='',
 #                           geom_read='tpss'
                           ):
@@ -199,15 +190,16 @@ def gen_nw_recp_dft_inputv2(input_set,
     '''
     
     xckey, rel_set = init_params()
-    
     # hard coded set of functionals built in for generator
      
 #     functionals = ['svwn', 'bp86', 'blyp', 'pw91', 'pbe', 'tpss',
 #                    'm06l', 'pbe0', 'b3lyp', 'bhlyp', 'b3p86', 'b97-1',
 #                    'x3lyp', 'tpssh']
     
-#     functionals = ['svwn', 'pbe', 'b3lyp', 'm06l']
-    functionals = ['tpss']
+    functionals = input_func
+
+#     functionals = ['tpss', 'm06l']
+#     functionals = ['pbe', 'b3lyp']
     
     workdir = top_direc
     cmp = input_set
@@ -279,6 +271,7 @@ def gen_nw_recp_dft_inputv2(input_set,
     if not os.path.isdir(new_dir):
         os.mkdir(new_dir)
 
+#     vec
     # not optimizing, set these options
     if optimize == 'n':
         card = 'energy'
@@ -290,6 +283,8 @@ def gen_nw_recp_dft_inputv2(input_set,
             exten = []
             exten.append('rp')
             exten.append('so')
+            if init_guess != 'atomic':
+                vec_input = '{}.{}.{}.movecs'.format(cmp, init_guess, exten[0])
 
 #         elif dft_direc == 'sodft':
 #             card = 'spin-orbit opt+freq'
@@ -351,7 +346,7 @@ def gen_nw_recp_dft_inputv2(input_set,
         Main_file.append('memory 500 mw\necho\n\n')
         
         Main_file.append('geometry\n')
-        GEO = get_the_geom(functionals[i], cmp)
+        GEO = get_the_geom(functionals[i], cmp, os.getcwd())
         Main_file.append(GEO)
 
         Main_file.append('end\n')
@@ -402,7 +397,7 @@ def gen_nw_recp_dft_inputv2(input_set,
             
         file_out.close()
     # we're done, change back to the working directory if we haven't already 
-    if os.getcwd() != top_direc:       
+    if os.getcwd() != top_direc:
         os.chdir(workdir)
 
 
@@ -410,11 +405,12 @@ parser = argparse.ArgumentParser(description='''
 Hi! I generate nwchem input files for dft/so-dft calculations on the f-elements.''',
 epilog='\n Usage: [insert-name].py -c LaF3 -b ANO -d sodft -o y \n')
 
-parser.add_argument('-c','--compound', help="Name of compound", required=True)
+parser.add_argument('-c', '--compound', help="Name of compound", required=True)
 parser.add_argument('-b', '--relbasis', help="basis type: SEG, ANO, AE", required=False)
-parser.add_argument('-iv', '--initvecs',     help="functional to use as initial vectors, else uses atomic guess", required=False)
-parser.add_argument('-o', '--optimize',  help="do an optimization+freq", required=False)
-parser.add_argument('-d', '--dft_task',    help="task directive for: dft sodft both, default=dft", required=False)
+parser.add_argument('-iv', '--initvecs', help="functional to use as initial vectors, else uses atomic guess", required=False)
+parser.add_argument('-o', '--optimize', help="do an optimization+freq", required=False)
+parser.add_argument('-d', '--dft_task', help="task directive for: dft sodft both, default=dft", required=False)
+parser.add_argument('-fs', '--infuncs', help="list of functionals to operate on, seperated by commas. svwn,b3lyp,m06l", required=False)
 # parser.add_argument('-g','--geom', help='selects starting geom file (initial,tpss,...), default=tpss', required=False)
 # parser.add_argument('-e', '--ecptype',     help="ECP type WB", required=False)
 # parser.add_argument('-aug', '--augmented', help="augmented ligand set?", required=False)
@@ -423,7 +419,6 @@ parser.add_argument('-d', '--dft_task',    help="task directive for: dft sodft b
 args = vars(parser.parse_args())
 
 compnd = args['compound']
-
 # rel_basis = args['relbasis']
 
 if args['relbasis']:
@@ -451,6 +446,12 @@ if args['initvecs']:
 else:
     init_guess = 'atomic'
 
+if args['infuncs']:
+    func_str = str(args['infuncs'])
+    input_func = re.split(',', func_str)
+else:
+    input_func = ['tpss', 'm06l', 'b3lyp', 'svwn', 'pbe']
+
 
 def gen_nw_DKH_dft_input(input_set, dft_direc='both',init_guess='atomic', optimize='n', Nbas_keys=['','T'], geom_read='tpss'):
     '''
@@ -477,7 +478,14 @@ def gen_nw_DKH_dft_input(input_set, dft_direc='both',init_guess='atomic', optimi
     
     # hard coded set of functionals built in for generator
     
-    functionals = ['svwn', 'pbe', 'tpss', 'm06l', 'b3lyp']
+    # lucas
+#     functionals = ['tpss', 'm06l']
+#     functionals = ['svwn', 'pbe', 'b3lyp']
+#     functionals = ['tpss']
+    # emily
+    functionals = ['pbe', 'b3lyp']
+
+#    functionals = ['svwn', 'pbe', 'tpss', 'm06l', 'b3lyp']
 #    functionals = ['tpss', 'm06l']  
     
     workdir = top_direc
@@ -494,27 +502,15 @@ def gen_nw_DKH_dft_input(input_set, dft_direc='both',init_guess='atomic', optimi
         
     if optimize == None:
         optimize = 'n'
-        
+
     sub_list = re.findall(r'[A-Z][a-z]*|\d+', cmp)
-    
+        
     if len(sub_list) == 1:
-        GEO = 'zmatrix\n{}\nend\n'.format(cmp)
         elem_list = sub_list
-        # halt if user is trying to optimize an atom 
-        if optimize == 'y':
-            raise Exception('Atoms do not require optimization')
+
     else:
-        # now we don't care about digits, just find all entries of chemical elements
         elem_list = re.findall(r'[A-Z][a-z]*', cmp)
-#         if geom_read == 'default':
-        if geom_read == 'initial':
-            geom_file = pd.read_hdf('input_gendb.h5', 'geom_init')
-        elif geom_read == 'tpss':
-            geom_file = pd.read_hdf('input_gendb.h5','geom_tpss')
-        # halt if geometry is not in the index 
-        if cmp not in geom_file.index:
-            raise Exception('No geometry entry found for {}'.format(cmp))
-        GEO = geom_file[cmp]
+        
         
 
 #### differences 
@@ -555,14 +551,9 @@ def gen_nw_DKH_dft_input(input_set, dft_direc='both',init_guess='atomic', optimi
 
     elif optimize == 'y':
         raise Exception("Let's hold off on optimizing in the all-electron basis sets for now.")
-#         card = 'opt+freq'
-#         if dft_direc == 'both':
-#             raise Exception('Optimizations are currently limited to one directive block')
-#         func_span = range(0, len(functionals))
-#         DFT_DIRECS = ['task {} optimize \ntask {} freq\n'.format(dft_direc, dft_direc)]
-#         exten = ['m' + str(M)]
 
 #------------------------- Main Generator Routine ------------------------#
+
     for i in func_span:
         Main_file = []
         file_out = open('{}.{}.{}.nw'.format(cmp,functionals[i],exten[0]), 'w', newline='\n')
@@ -571,6 +562,7 @@ def gen_nw_DKH_dft_input(input_set, dft_direc='both',init_guess='atomic', optimi
         Main_file.append('memory total 6000 stack 2000 mb\necho\n\n')
 
         Main_file.append('geometry\n')
+        GEO = get_the_geom(functionals[i], cmp, os.getcwd())
         Main_file.append(GEO)
         Main_file.append('end\n')
         Main_file.append('\n\nbasis spherical\n')
@@ -601,34 +593,16 @@ def gen_nw_DKH_dft_input(input_set, dft_direc='both',init_guess='atomic', optimi
                                  
             Main_file.append(' maxiter 200\nend\n\n') 
             # if first pass, then add line to generate nbo file 
-            if j == 0 and exten[0] != 'sopt':
-                Main_file.append('property\n nbofile\nend\n\n')
-#                 Main_file.append('property\n moldenfile\nmolden_norm nwchem\nend\n')
-                Main_file.append('{}\ntask dft property\n'.format(DFT_DIRECS[j]))
-            else:
-                Main_file.append('{}'.format(DFT_DIRECS[j]))
-
-
-
-
-#             if vec_input[j] == 'atomic':
-#                 Main_file.append(' vectors input {} output {}.{}.{}.movecs\n'.format(vec_input[j],
-#                                                                                     cmp,
-#                                                                                     functionals[i],
-#                                                                                     exten[j]))
-#             else:
-#                 inp_arg = '{}.{}.{}'.format(cmp,functionals[i],exten[j-1])
-#                 out_arg = '{}.{}.{}'.format(cmp,functionals[i],exten[j])
-#                 Main_file.append(' vectors input {}.movecs output {}.movecs\n'.format(inp_arg, out_arg))
-#
-#             Main_file.append(' maxiter 200\nend\n\n')
-#
-#             if j == 0:
-#                 Main_file.append('property\nnbofile\nend\n\n')
+            # nevermind, nbo does not support h functions (lazy fucks), and guess
+            # what the AE basis sets have? H functions! So, can't do this. 
+#             if j == 0 and exten[0] != 'sopt':
+#                 Main_file.append('property\n nbofile\nend\n\n')
+# #                 Main_file.append('property\n moldenfile\nmolden_norm nwchem\nend\n')
 #                 Main_file.append('{}\ntask dft property\n'.format(DFT_DIRECS[j]))
-#
 #             else:
 #                 Main_file.append('{}'.format(DFT_DIRECS[j]))
+            Main_file.append('{}'.format(DFT_DIRECS[j]))
+
 
         for k in range(0, len(Main_file)):
             file_out.write(str(Main_file[k]))
@@ -638,7 +612,7 @@ def gen_nw_DKH_dft_input(input_set, dft_direc='both',init_guess='atomic', optimi
         os.chdir(workdir)
 
 if args['relbasis'] == 'AE' or args['relbasis'] == 'DKH' or args['relbasis'] == 'DK':
-    gen_nw_DKH_dft_input(compnd, dft_direc=dft_direc, init_guess=init_guess, optimize='n', Nbas_keys=['','T'], geom_read=geom_read)
+    gen_nw_DKH_dft_input(compnd, dft_direc=dft_direc, init_guess=init_guess, optimize='n', Nbas_keys=['','T'])
 else: 
 #     gen_nw_recp_dft_inputv2(compnd, rel_basis, dft_direc=dft_direc, init_guess=init_guess, optimize=optimize, level='WB', Nbas_keys='', geom_read=geom_read)
-    gen_nw_recp_dft_inputv2(compnd, rel_basis, dft_direc=dft_direc, init_guess=init_guess, optimize=optimize, level='WB', Nbas_keys='')
+    gen_nw_recp_dft_inputv2(compnd, rel_basis, dft_direc=dft_direc, init_guess=init_guess, input_func=input_func, optimize=optimize, level='WB', Nbas_keys='')
